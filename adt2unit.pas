@@ -4697,7 +4697,7 @@ begin
       song_timer_tenths := 0;
     end;
 
-{$IFDEF GO32V2}
+
 
   If (ticklooper > 0) then
     If (fast_forward or rewind) and NOT replay_forbidden then
@@ -4710,15 +4710,13 @@ begin
     macro_poll_proc;
 
   Inc(ticklooper);
-  If (ticklooper >= IRQ_freq DIV tempo) then
+  If (ticklooper >= 100 DIV tempo) then
     ticklooper := 0;
 
   Inc(macro_ticklooper);
-  If (macro_ticklooper >= IRQ_freq DIV (tempo*_macro_speedup)) then
+  If (macro_ticklooper >= 100 DIV (tempo*_macro_speedup)) then
     macro_ticklooper := 0;
 
-  _debug_str_ := _debug_str_bak_;
-{$ENDIF}
 end;
 
 {$IFDEF GO32V2}

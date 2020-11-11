@@ -228,7 +228,7 @@ end;
 uses
   MATH,SysUtils,
   AdT2unit,AdT2sys,TxtScrIO,StringIO,
-  SDL_Types,SDL_Audio,OPL3EMU;
+  SDL_Types,SDL_Audio,serial;
 
 const
   opl3_sample_buffer_ptr: Pointer = NIL;
@@ -238,6 +238,10 @@ const
 var
   sample_frame_size: Longint;
   sdl_audio_spec: SDL_AudioSpec;
+
+  serialhandle : LongInt;
+  ComPortName  : String;
+  Flags        : TSerialFlags; { TSerialFlags = set of (RtsCtsFlowControl); }
 
 procedure flush_WAV_data;
 
@@ -448,23 +452,68 @@ begin
 end;
 
 procedure opl3out_proc(reg,data: Word);
+var
+  x: byte;
+  y: byte;
+  z: byte;
+  writecount: integer;
 begin
-  OPL3EMU_WriteReg(reg,data);
+  //OPL3EMU_WriteReg(reg,data);
+  
+  x:= (reg SHR 6) OR $80;
+  y:= ((reg AND $3f) SHL 1) OR (data SHR 7);
+  z:= (data AND $7f);
+  writecount := 1;
+  SerWrite(serialhandle, x, writecount);
+  SerWrite(serialhandle, y, writecount); 
+  SerWrite(serialhandle, z, writecount); 
+  
 end;
 
 procedure opl3exp(data: Word);
+var
+  r: Word;
+  d: Word;
+  x: byte;
+  y: byte;
+  z: byte;
+  writecount: integer;
 begin
-  OPL3EMU_WriteReg((data AND $ff) OR $100,data SHR 8);
+  //OPL3EMU_WriteReg((data AND $ff) OR $100, data SHR 8);
+  
+  r:= (data AND $ff) OR $100;
+  d:= data SHR 8;
+  x:= (r SHR 6) OR $80;
+  y:= ((r AND $3f) SHL 1) OR (d SHR 7);
+  z:= (d AND $7f);
+  writecount := 1;
+  SerWrite(serialhandle, x, writecount);
+  SerWrite(serialhandle, y, writecount); 
+  SerWrite(serialhandle, z, writecount); 
 end;
 
 procedure opl3_init;
+var
+  s: String;
+  writecount: integer;
 begin
-  OPL3EMU_init;
+  //OPL3EMU_init;
+  
+{   ComPortName:= 'COM9:';
+  serialhandle := SerOpen(ComPortName);
+  Flags:= [ ]; // None
+  SerSetParams(serialhandle,9600,8,NoneParity,1,Flags);
+  SerWrite(serialhandle, s[1], writecount); }
+  
 end;
 
 procedure opl3_done;
 begin
   SDL_PauseAudio(1);
+  
+  //SerSync(serialhandle); { flush out any remaining before closure }
+  //SerFlushOutput(serialhandle); { discard any remaining output }
+  //SerClose(serialhandle); 
 end;
 
 // value in Hz for timer
@@ -551,7 +600,7 @@ begin
       For idx := 1 to 18 do
         buffer_ptr_table[idx] := opl3_sample_buffer_chan_ptr[idx]+counter*4;
       // update one step
-      OPL3EMU_PollProc(opl3_sample_buffer_ptr+counter*4,buffer_ptr_table);
+      //OPL3EMU_PollProc(opl3_sample_buffer_ptr+counter*4,buffer_ptr_table);
     end;
 
   // update SDL Audio sample buffer
@@ -593,11 +642,17 @@ end;
 
 procedure snd_init;
 
-var
-  idx: Byte;
+//var
+  //idx: Byte;
 
 begin
-  GetMem(opl3_sample_buffer_ptr,sdl_sample_buffer*4);
+
+  ComPortName:= 'COM2:';
+  serialhandle := SerOpen(ComPortName);
+  Flags:= [ ]; // None
+  SerSetParams(serialhandle,115200,8,NoneParity,1,Flags);
+  
+{   GetMem(opl3_sample_buffer_ptr,sdl_sample_buffer*4);
   For idx := 1 to 18 do GetMem(opl3_sample_buffer_chan_ptr[idx],sdl_sample_buffer*4);
   sample_frame_size := ROUND(sdl_sample_rate/50*(1+sdl_timer_slowdown/100));;
 
@@ -622,7 +677,7 @@ begin
   sdl_sample_rate := sdl_audio_spec.freq;
   sdl_sample_buffer := sdl_audio_spec.samples;
 
-  SDL_PauseAudio(0);
+  SDL_PauseAudio(0); }
 end;
 
 procedure snd_done;
@@ -631,11 +686,15 @@ var
   idx: Byte;
 
 begin
-  SDL_PauseAudio(1);
+{   SDL_PauseAudio(1);
   SDL_CloseAudio;
   FreeMem(opl3_sample_buffer_ptr);
   For idx := 1 to 18 do FreeMem(opl3_sample_buffer_chan_ptr[idx]);
-  opl3_sample_buffer_ptr := NIL;
+  opl3_sample_buffer_ptr := NIL; }
+  
+  SerSync(serialhandle); { flush out any remaining before closure }
+  SerFlushOutput(serialhandle); { discard any remaining output }
+  SerClose(serialhandle); 
 end;
 
 {$ENDIF}
